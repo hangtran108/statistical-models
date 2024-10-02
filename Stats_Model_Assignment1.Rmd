@@ -1,0 +1,270 @@
+---
+title: "Assignment 1 - Statistical Models"
+date: "01/10/2024"
+author:
+  - name: "Hang Tran"
+output:
+  rmdformats::readthedown:
+    thumbnails: true
+    lightbox: true
+    gallery: true
+    use_bookdown: true
+---
+
+# Exercise 2
+  
+Whenever appropriate, use relevant diagnostic tools to check the model assumptions.
+
+A hardness testing machine operates by pressing a tip into a metal test “coupon”. The hardness of the coupon can be determined from the depth of the resulting depression. Four tip types are being tested to see if they produce significantly different readings. The coupons might differ slightly in their hardness (for example, if they are taken from ingots produced in different heats). Thus coupon is a nuisance factor, which should in principle be taken into account. Such type of analysis (combination of factor(s) of importance and block factor(s) to be taken into account) is called randomized block design.
+
+Since coupons are large enough to test four tips on, a randomized block design can be used, with coupon as block. Four blocks were used. Within each block (coupon) the order in which the four tips were tested was randomly determined. The results (readings on a certain hardness scale) are shown in the below table.
+
+![](image/q2.png)
+
+## a
+
+Suppose you were to set up this experiment: propose an R-function which creates a random order of 16 tests covering all the combinations of levels of the two factors in a randomized block design.
+
+```{r,warning=FALSE,message=FALSE}
+# Function to create randomized block design
+randomized_block_design <- function(tips, coupons) {
+  
+  # Ensure reproducibility
+  set.seed(123)
+  
+  # Initialize a data frame to store the randomized block design
+  design <- data.frame(Coupon = rep(coupons, each = length(tips)),
+                       Tip = rep(tips, times = length(coupons)),
+                       RandomOrder = NA)
+  
+  for (i in 1:length(coupons)) {
+    design$RandomOrder[design$Coupon == coupons[i]] <- sample(1:length(tips))
+  }
+  
+  return(design)
+}
+
+# Define the tips and coupons
+tips <- 1:4           # 4 types of tips
+coupons <- 1:4        # 4 coupons (blocks)
+
+# Generate the randomized block design
+df <- randomized_block_design(tips, coupons)
+
+# Add the hardness values from the table 
+hardness_values <- c(9.3, 9.4, 9.2, 9.7, 
+                     9.4, 9.3, 9.4, 9.6, 
+                     9.6, 9.8, 9.5, 10.0, 
+                     10.0, 9.9, 9.7, 10.2)
+
+# Add the hardness values as a new column in df
+df$Hardness <- hardness_values
+df
+```
+
+## b
+
+Make some graphical summaries of the data and give some tentative comments. What can you say about eventual interaction between Coupon and Tip?
+
+```{r,warning=FALSE,message=FALSE}
+# Load necessary library
+library(ggplot2)
+
+# Create a scatter plot
+ggplot(df, aes(x = factor(Tip), y = Hardness, color = factor(Coupon))) +
+  geom_point(size = 3) +   # Add points
+  geom_line(aes(group = Coupon), linetype = "dashed") + # Connect points with dashed lines
+  labs(title = "Scatter Plot of Hardness by Tip and Coupon",
+       x = "Tip Type",
+       y = "Hardness Values",
+       color = "Coupon") +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+```
+
+The lines connecting the points are not parallel. This suggests that there is a potential interaction effect between the Coupon and the Tip. Specifically, the effectiveness of the tips differs depending on which coupon they are paired with.
+For instance, Tip 4 seems to perform significantly better with Coupon 3 and Coupon 4 compared to Coupon 1 and 2. This indicates that the hardness produced by different tips is influenced by the specific coupon being used.
+
+## c
+Test the null hypothesis that the hardness is the same for all types of tip.
+
+To test the null hypothesis that the hardness is the same for all tips, we can use a two-way ANOVA with "Coupon" as a blocking factor and "Tip" as the factor of interest. 
+
+```{r,warning=FALSE,message=FALSE}
+df$Coupon <- as.factor(df$Coupon)  # Convert Coupon to factor
+df$Tip <- as.factor(df$Tip)         # Convert Tip to factor
+# Perform ANOVA to test for differences in hardness across tips
+anova_mod <- aov(Hardness ~ Tip + Coupon, data = df)
+summary(anova_mod)
+```
+Since the p-value of Tip = 0.000871 $<$ 0.05, we reject the null hypothesis that the hardness is the same for all types of tips. This indicates that there are significant differences in hardness among at least some of the different tips tested.
+
+## d
+Which type of tip is preferable? How does the hardness depend on the type coupon? Estimate the hardness of coupon of type 3 one uses a tip of type 2, do the same for coupon of type 1 and a tip of type 4.
+
+The mean hardness values calculated will give us insight into which tip is preferable. The tip with the highest mean hardness across all coupons would generally be considered the best option.
+
+```{r,warning=FALSE,message=FALSE}
+mean_hardness <- aggregate(Hardness ~ Tip, data = df, FUN = mean)
+print(mean_hardness)
+```
+
+Tip 4 has the highest mean of hardness, hence, it is the most preferable.
+
+Using the fitted model from part (c) to estimate hardness for specific combinations:
+
+```{r,warning=FALSE,message=FALSE}
+predict(anova_mod, df2 = data.frame(Tip = 2, Coupon = 3))  # Tip 2, Coupon 3
+predict(anova_mod, df2 = data.frame(Tip = 4, Coupon = 1))  # Tip 4, Coupon 1
+```
+
+## e
+
+Test the null hypothesis that the hardness is the same for all types of tip, now ignoring the variable Coupon. Is it right/wrong and useful/not useful to perform this test on this dataset?
+
+To ignore the "Coupon" factor, we will perform a one-way ANOVA:
+```{r,warning=FALSE,message=FALSE}
+anova_mod2 <- aov(Hardness ~ Tip, data = df)
+summary(anova_mod2)
+```
+Ignoring Coupon factor leads to a wrong conclusion about the effect of Tip on Hardness. This test shows that the p-value of Tip = 0.22 > 0.05, so we do not reject the hypothesis that the hardness is the same for all types of tip, which is a wrong conclusion (as seen from part (b)).
+
+# Exercise 3
+In each of the three counties in Iowa, a sample of farm was taken from farms for which landlornd and tenant are related and also from farms for which landlord and tenant are not related. The data is contained in data frame crops.txt Download crops.txt, where column Crops contains the value of crops, column Size the size of farm, column County the county and column Related reflects the fact whether landlord and tenant related (value “yes”) or no (value “no”). We are primarily interested in investigating the effect of county and relation of landlord and tenant on the crops.
+
+## a
+
+Investigate whether two factors County and Related (and possibly their interaction) influence the crops by performing relevant ANOVA model(s), without taking Size into account. Using a chosen model, estimate the crops for a typical farm in County 3 for which landlord and tenant are not related. Comment on your findings.
+
+```{r,warning=FALSE,message=FALSE}
+# Load the data
+crops_data <- read.table("crops.txt", header = TRUE)
+crops_data
+```
+We need to investigate if County and Related (and possibly their interaction) influence the crop yields without taking Size into account. We perform a two-way ANOVA, considering County and Related as factors and Crops as the response variable.
+
+```{r,warning=FALSE,message=FALSE}
+crops_data$County <- as.factor(crops_data$County)  # Convert to factor
+crops_data$Related <- as.factor(crops_data$Related)  # Convert to factor
+
+# Perform two-way ANOVA
+anova_model1 <- aov(Crops ~ County * Related, data = crops_data)
+summary(anova_model1)
+```
+The table shows that both County, Related and their interaction have p-value > 0.05, indicating that none of which have a significant impact on the crop yields.
+
+Using the model, we can estimate the crop yield for County 3 where the landlord and tenant are not related as follows:
+
+```{r,warning=FALSE,message=FALSE}
+# Make the prediction using the ANOVA model
+predicted_value <- predict(anova_model1, newdata = data.frame(County = '3', Related = "no"))
+predicted_value
+```
+
+## b
+
+Now include also Size as explanatory variable into the analysis. Investigate whether the influence of Size on Crops is similar for all three counties and whether the influence of Size depends on the relation of landlord and tenant of the farm. (Consider at most one (relevant) pairwise interaction per model.) Choose the most appropriate model. Comment.
+
+```{r,warning=FALSE,message=FALSE}
+# Include Size and investigate the interaction with County and Related
+anova_model2 <- aov(Crops ~ County * Related + Size + Size:County + Size:Related, data = crops_data)
+summary(anova_model2)
+```
+```{r,warning=FALSE,message=FALSE}
+# Compare models using AIC
+step(anova_model2)
+```
+
+## c
+
+For the resulting model from b), investigate how County, Related and Size influence Crops, Comment.
+
+County, Size and the interaction between County and Size do have a significant impact on the crop yields. 
+## d
+
+Using the resulting model from b), predict the crops for for a farm from County 2 of size 165, with related landlord and tenant. Estimate also the error variance.
+
+```{r,warning=FALSE,message=FALSE}
+# Use the final model from (b) to make predictions
+predicted_value <- predict(anova_model2, newdata = data.frame(County = '2', Size = 165, Related = "yes"))
+predicted_value
+```
+# Exercise 4
+The dataset Boston contains information collected from the US Census about housing in the suburbs of Boston. The data is available in the MASS package (execute library(MASS) to load and attach the package). It contains n=506 observations and 14 columns (variables/features) measured on the census districts of the Boston metropolitan area, like average number of rooms (rm), per capita crime rate (crim), etc.; for the full list see the description of the dataset in R. Remove from the consideration two categorical variables chas and rad and treat the variable medv as response.
+
+Apply the LASSO method along the lines outlined in the lecture to select the relevant variables (among the remaining 11 variables) for predicting the response medv (median value of owner-occupied homes in $1000s) with default parameters as in the lecture and lambda=lambda.1se. Compare the prediction by the selected LASSO model with that by the full linear model. Comment. (You will need to install the R-package glmnet, which is not included in the standard distribution of R. Also beware that in general a new run may deliver a new model because of a new train set.)
+
+```{r,warning=FALSE,message=FALSE}
+# Load the required libraries
+library(MASS)      # For the Boston dataset
+library(glmnet)    # For LASSO implementation
+
+# Load the Boston dataset
+data("Boston")
+
+# Remove categorical variables 'chas' and 'rad'
+boston_data <- Boston[, !(names(Boston) %in% c("chas", "rad"))]
+head(boston_data,5)
+```
+
+Split train and test set:
+
+```{r,warning=FALSE,message=FALSE}
+# Set seed for reproducibility
+set.seed(123)
+
+# Define the response (medv) and predictor variables
+response <- boston_data$medv
+predictors <- as.matrix(boston_data[, -which(names(boston_data) == "medv")])
+
+# Split the data into training and testing sets (70% train, 30% test)
+train_indices <- sample(1:nrow(boston_data), nrow(boston_data) * 0.7)
+train_x <- predictors[train_indices, ]
+train_y <- response[train_indices]
+test_x <- predictors[-train_indices, ]
+test_y <- response[-train_indices]
+```
+
+Fit the LASSO Model:
+
+The LASSO model is fitted using the cv.glmnet() function, which automatically performs cross-validation to find the optimal value of lambda. We will use the lambda that gives the simplest model within one standard error of the minimum (lambda.1se).
+
+```{r,warning=FALSE,message=FALSE}
+# Fit LASSO model using cross-validation
+lasso_model <- cv.glmnet(train_x, train_y, alpha = 1)  # alpha=1 indicates LASSO
+
+# Lambda values
+lambda_min <- lasso_model$lambda.min
+lambda_1se <- lasso_model$lambda.1se
+
+# Coefficients for the selected lambda
+lasso_coefs <- coef(lasso_model, s = "lambda.1se")
+print(lasso_coefs)
+```
+rm, ptratio, lstat have non-zero coefficients, so they are relevant variables (among the remaining 11 variables) for predicting the response.
+
+Make Predictions and Evaluate the LASSO Model:
+```{r,warning=FALSE,message=FALSE}
+# Predict on the test data using the lambda.1se
+lasso_pred <- predict(lasso_model, s = "lambda.1se", newx = test_x)
+
+# Calculate Mean Squared Error (MSE) for LASSO
+lasso_mse <- mean((lasso_pred - test_y)^2)
+print(paste("LASSO Test MSE:", lasso_mse))
+```
+
+Fit the Full Linear Model and compare its performance with the LASSO model:
+
+```{r,warning=FALSE,message=FALSE}
+# Fit a full linear model
+full_model <- lm(medv ~ ., data = boston_data[train_indices, ])
+
+# Predict on the test data
+full_pred <- predict(full_model, newdata = as.data.frame(test_x))
+
+# Calculate Mean Squared Error (MSE) for full model
+full_mse <- mean((full_pred - test_y)^2)
+print(paste("Full Model Test MSE:", full_mse))
+```
+MSE of the Full Linear Model is lower than that of LASSO model. This suggests that the full linear model is more effective in predicting the median value of owner-occupied homes in $1000s than the LASSO model.
